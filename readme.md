@@ -4,6 +4,8 @@ Slides for a strongDM tech talk.
 
 [Click through the slides](https://etodd.github.io/data-driven-design/)
 
+Hit 'S' on your keyboard to see the speaker notes.
+
 # Installation
 ```
 git clone git@github.com:etodd/data-driven-design.git
