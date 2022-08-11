@@ -1,0 +1,675 @@
+<!doctype html>
+<html>
+    <head>
+    	<meta charset="utf-8">
+    	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    	<title>Data-Oriented Design</title>
+
+    	<link rel="stylesheet" href="reveal.js/dist/reset.css">
+    	<link rel="stylesheet" href="reveal.js/dist/reveal.css">
+    	<link rel="stylesheet" href="reveal.js/dist/theme/white.css">
+
+    	<!-- Theme used for syntax highlighted code -->
+    	<link rel="stylesheet" href="reveal.js/plugin/highlight/monokai.css">
+		<style>
+		.hidden {
+			visibility: hidden;
+		}
+		#registers {
+			transition-duration: 0ms;
+			transition-timing-function: linear;
+		}
+		#l1 {
+			transition-duration: 250ms;
+			transition-timing-function: linear;
+		}
+		#l2 {
+			transition-duration: 688ms;
+			transition-timing-function: linear;
+		}
+		#l3 {
+			transition-duration: 4063ms;
+			transition-timing-function: linear;
+		}
+		#ram {
+			transition-duration: 12500ms;
+			transition-timing-function: linear;
+		}
+		h1, h2, h3, h4 {
+			text-transform: none !important;
+		}
+		</style>
+    </head>
+    <body>
+    	<div class="reveal">
+    		<p id="header" style="position: absolute; top: 50px; left: 100px; z-index:500;"></p>
+    		<div class="slides">
+<section>
+    <h2>Data-Oriented Design</h2>
+    <p>Not just for performance</p>
+</section>
+<section>
+	<h3>What is DOD?</h3>
+	<p>Think about the data FIRST, before anything else.</p>
+	<aside class="notes">
+		What does this mean? To really understand, you need to understand some context...
+	</aside>
+</section>
+<section>
+    <p>It came from game developers</p>
+	<img src="img/developers.gif"/>
+	<img src="img/xbox360.jpg"/>
+	<aside class="notes">
+		<ul>
+			<li>DOD became popular in the mid to late 2000s with the advent of the Playstation 3 and Xbox 360</li>
+			<li>These processors have high clock rates, huge pipelines, and slow memory</li>
+			<li>What else to know about DOD?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+   	<p>Its sworn enemy is object-oriented programming</p>
+	<img src="img/oop.jpg"/>
+	<aside class="notes">
+		Why? We'll talk about this later, for now let's try to explain what DOD is technically.
+	</aside>
+</section>
+<section>
+	<p>Which function should we optimize?</p>
+	<pre><code class="go" data-trim>
+func a(x float64) float64 {
+	return math.Sqrt(x);
+}
+
+var data []float64
+func b(x int) float64 {
+	return data[x]
+}
+	</pre></code>
+	<aside class="notes">
+		<ul>
+			<li>Imagine you're a game developer and your game is running slow</li>
+			<li>These functions are called about the same number of times</li>
+			<li>Which do you optimize?</li>
+			<li>You might think square root is expensive, and it is, let's optimize it</li>
+			<li>This will lead us down a dark path...</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<pre><code class="c" data-trim>
+float Q_rsqrt( float number )
+{
+	long i;
+	float x2, y;
+	const float threehalfs = 1.5F;
+	x2 = number * 0.5F;
+	y = number;
+	i = * ( long * ) &y; // evil floating point bit level hacking
+	i = 0x5f3759df - ( i >> 1 ); // what the fuck? 
+	y = * ( float * ) &i;
+	y = y * ( threehalfs - ( x2 * y * y ) ); // 1st iteration
+	return y;
+}
+	</code></pre>
+	<aside class="notes">
+		<p>This is the famous <a href="https://en.wikipedia.org/wiki/Fast_inverse_square_root">fast inverse square root</a> function from Quake 3 Arena.
+		Although it was originally attributed to and made famous by John Carmack, an investigation traced variations of the algorithm back to the 80s.
+		It has been formatted to fit your screen.
+		This function goes to great lengths to avoid doing a real sqrt operation.</p>
+		<p>But is this sqrt really slower?</p>
+	</aside>
+</section>
+<section>
+	<pre><code class="go" data-trim>
+func a(x float64) float64 {
+	return math.Sqrt(x);
+}
+
+var data []float64
+func b(x int) float64 {
+	return data[x]
+}
+	</pre></code>
+	<aside class="notes">
+		<p>Hopefully both get compiled into roughly one instruction each</p>
+		<p>a = some sort of sqrt instruction</p>
+		<p>b = some sort of load instruction</p>
+		<p>How long do these instructions take to execute?</p>
+	</aside>
+</section>
+<section>
+	<h3>Instruction latency</h3>
+	<table>
+		<tr><td>sqrtps</td><td>14 cycles</td></tr>
+		<tr><td>movq</td><td>?</td></tr>
+	</table>
+	<small>
+		<a href="http://www.intel.com/content/www/us/en/architecture-and-technology/64-ia-32-architectures-optimization-manual.html">
+			intel.com/content/www/us/en/architecture-and-technology/64-ia-32-architectures-optimization-manual.html
+		</a>
+	</small>
+	<aside class="notes">
+		<ul>
+			<li>sqrtps is indeed pretty hefty, one of the chunkier instructions</li>
+			<li>How fast is movq? It depends...</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<h3>Where's the data?</h3>
+	<table>
+		<tr><td>Register</td><td>0 cycles</td></tr>
+		<tr><td>L1</td><td>4 cycles</td></tr>
+		<tr><td>L2</td><td>11 cycles</td></tr>
+		<tr><td>L3</td><td>40-75 cycles</td></tr>
+		<tr><td>RAM</td><td>100-300 cycles</td></tr>
+	</table>
+	<aside class="notes">
+		<ul>
+			<li>Each tier on this list gets bigger and slower</li>
+			<li>Let's try to get a feel for this...</li>
+		</ul>
+	</aside>
+</section>
+<section id="registers">
+	<h1>Register</h1>
+</section>
+<section id="l1">
+	<h1>L1</h1>
+</section>
+<section id="l2">
+	<h1>L2/sqrtps</h1>
+</section>
+<section id="l3">
+	<h1>L3</h1>
+</section>
+<section id="ram">
+	<h1>RAM</h1>
+</section>
+<section>
+	<p>Let's not talk about disk or network</p>
+</section>
+<section>
+	<p>We could do <b>20</b> sqrts while waiting for RAM</p>
+	<aside class="notes">
+		<ul>
+			<li>This is a huge problem</li>
+			<li>DOD was invented to solve it</li>
+			<li>How?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>If we could just keep everything in cache...</p>
+	<aside class="notes">
+		<ul>
+			<li>Before we get to the solution, let's go back to a question from earlier...</li>
+			<li>Why oh why do DOD enthusiasts hate OOP?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<img src="img/dijkstra.jpg" />
+	<aside class="notes">
+		<ul>
+			<li>What does OOP have to do with cache and RAM?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<img src="img/doom3.jpg"/>
+	<aside class="notes">
+		<ul>
+			<li>DOOM 3 is an example of an object-oriented game</li>
+			<li>Let's look at DOOM 3's update function</li>
+			<li>The update function executes 60 times per second in a game, or 30 times per second in a bad game</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<pre><code class="cpp">
+for ( idEntity* ent = activeEntities.Next();
+       ent != NULL;
+       ent = ent-&gt;activeNode.Next() )
+{
+       if ( g_cinematic.GetBool() &amp;&amp; inCinematic &amp;&amp; !ent-&gt;cinematic )
+       {
+               ent-&gt;GetPhysics()-&gt;UpdateTime( time );
+               continue;
+       }
+       timer_singlethink.Clear();
+       timer_singlethink.Start();
+       RunEntityThink( *ent, cmdMgr );
+       timer_singlethink.Stop();
+       ms = timer_singlethink.Milliseconds();
+       if ( ms &gt;= g_timeentities.GetFloat() )
+               Printf( "%d: entity '%s': %.1f ms\n", time, ent-&gt;name.c_str(), ms );
+       num++;
+}
+	</code></pre>
+	<aside class="notes">
+		<ul>
+			<li>Great OOP design</li>
+			<li>Can change objects without changing this loop</li>
+			<li>Complexity encapsulated inside objects</li>
+			<li>Could be update loop for almost any game</li>
+			<li>Why does DOD hate this?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>DOOM 3 memory visualized</p>
+	<div class="r-stack">
+		<img src="img/oop-memory.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-2.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-3.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-4.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-2.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-5.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-6.png" class="fragment fade-in-then-out" />
+		<img src="img/oop-memory-7.png" class="fragment fade-in-then-out" />
+	</div>
+	<aside class="notes">
+		<ul>
+			<li>(1) Objects are stored randomly on the heap</li>
+			<li>(2,3,4) We're gonna update Podrick, Jon, then Tyrion</li>
+			<li>(5) Let's do Podrick first. What happens? Data is loaded from RAM into cache</li>
+			<li>(6) Think of the cache as a spotlight that automatically loads things closeby</li>
+			<li>(7) When the spotlight shifts drastically, the whole cache is thrown away and reloaded from RAM</li>
+			<li>(8) When we come back to Tyrion, we have to reload everything around him a second time</li>
+			<li>Bad for performance but also makes it difficult to answer important DOD questions</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<h3>Data-oriented questions</h3>
+	<ul>
+		<li class="fragment">What is executing?</li>
+		<li class="fragment">In what order is it executing?</li>
+		<li class="fragment">Where is the data stored in memory?</li>
+	</ul>
+	<img src="img/shrug.gif" class="fragment" />
+	<aside class="notes">
+		<ul>
+			<li>OOP makes it very difficult to answer these questions</li>
+			<li>In fact the whole point of OOP is to make it so you can't answer these questions</li>
+			<li>It hides the details</li>
+			<li>DOD considers these questions to be very important</li>
+			<li>So how does DOD do this instead?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>A data-oriented update function</p>
+	<pre><code class="cpp" data-trim>
+for (int i = 0; i < rigid_bodies.length; i++)
+       rigid_bodies[i].update();
+
+for (int i = 0; i < ai_controllers.length; i++)
+       ai_controllers[i].update();
+
+for (int i = 0; i < players.length; i++)
+       players[i].update();
+
+// etc...
+	</code></pre>
+	<aside class="notes">
+		<ul>
+			<li>Difference #1: lists of actual data, not pointers to data</li>
+			<li>Difference #2: we always know what kind of data we're working with</li>
+			<li>We can control the order they execute and where they're stored</li>
+			<li>What does our heap look like now?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>Data-oriented memory visualized</p>
+	<img src="img/linear-memory.png"/>
+	<aside class="notes">
+		<ul>
+			<li>We're accessing the data in order. This maximizes cache locality</li>
+			<li>So let's sum up what we've learned so far...</li>
+	</aside>
+</section>
+<section>
+	<p>DOD = good performance</p>
+	<p>OOP = bad performance</p>
+	<aside class="notes">
+		<ul>
+			<li>This leads somewhere very unhelpful...</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>The discourse turns toxic</p>
+	<table>
+		<tr>
+			<th>Game developers</th>
+			<td class="fragment">"If you've never read a CPU spec sheet, you're not a real programmer"</td>
+			<td class="fragment">"Electron is everything wrong with modern computing"</td>
+		</tr>
+		<tr>
+			<th>Everyone else</th>
+			<td class="fragment">"I don't have time to obsess over bits and bytes"</td>
+			<td class="fragment">"I'm not going to make my code ugly just to make it go faster."</td>
+		</tr>
+	</table>
+	<aside class="notes">Where does this misunderstanding come from?</aside>
+</section>
+<section>
+	<p>A poor definition</p>
+	<p class="fragment strike">DOD: it's about cache locality and performance</p>
+	<aside class="notes">
+		<ul>
+			<li>This is what we commonly understand as DOD, but I propose a broader definition</li>
+			<li>DOD is not just for performance wonks, it's for you!</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<h3>My thesis</h3>
+    <p>DOD: think about the data FIRST, before anything else.</p>
+	<p class="fragment">This actually results in better design</p>
+	<aside class="notes">
+		<ul>
+			<li>What does it mean to have "better design"?</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>What do I mean that DOD results in "better design"?</li>
+	<img src="img/doom3.jpg" class="fragment"/>
+	<aside class="notes">
+		<ul>
+			<li>We've just seen this with DOOM 3</li>
+			<li>Switching to DOD didn't just improve performance and cache locality</li>
+			<li>It gave us a clearer mental model that allowed us to answer what is executing, in what order is it executing, and where is the data stored</li>
+			<li>These questions are useful not just for performance, but for readability and understandability</li>
+			<li>But let's try to make this "better design" more concrete...</li>
+		</ul>
+	</aside>
+</section>
+<section>
+	<p>What exactly is "better design"?</p>
+	<p>What is software design?</p>
+	<aside class="notes">Quick detour: the history of software</aside>
+</section>
+<section>
+    <p>Unstructured programming</p>
+    <pre><code class="x86asm" data-trim>
+L1: push ecx
+cmp BYTE PTR[esi], 0
+je L4
+
+mov cl, [edi]
+cmp cl,0
+jge L2
+rol BYTE PTR[esi],cl
+jmp L3
+L2: ror BYTE PTR[esi], cl
+    </code></pre>
+    <img class="r-stretch" data-src="img/unstructured.svg" />
+    <aside class="notes">
+    	Here we are looking at the real stuff the computer is doing (sort of).
+    	The code is completely flat, and we can jump anywhere in it.
+    	It's chaos.
+    </aside>
+</section>
+<section>
+    <p>Structured programming</p>
+    <pre><code class="basic" data-trim>
+30 INPUT "How many stars do you want: "; N
+40 S$ = ""
+50 FOR I = 1 TO N
+60 S$ = S$ + "*"
+70 NEXT I
+80 PRINT S$
+    </code></pre>
+    <img class="r-stretch" data-src="img/structured.svg" />
+    <aside class="notes">
+    	Next comes if statements and loops.
+    	These help us break down the code into manageable chunks.
+    	Within each chunk, we have some assurance that the code will not jump somewhere else.
+    </aside>
+</section>
+<section>
+    <p>Functional decomposition</p>
+    <pre><code class="c" data-trim>
+func doMath() {
+	add(1, 2)
+	add(2, 2)
+}
+
+func add(x, y int) {
+	fmt.Printf("%d\n", x + y)
+}
+    </code></pre>
+    <img class="r-stretch" data-src="img/functions.svg" />
+    <aside class="notes">
+    	Next we break down the code further into reusable functions.
+    	The function has an interface that other functions can use without worrying about what happens inside the function.
+    	This gives us some assurance that a change in one function will not sprawl out of control and impact other functions.
+    </aside>
+</section>
+<section>
+    <p>OOP</p>
+    <pre><code class="java" data-trim>
+class Employee {
+	String getName();
+	void fire();
+	void promote();
+}
+    </code></pre>
+    <img class="r-stretch" data-src="img/oop.svg" />
+    <aside class="notes">
+		<ul>
+			<li>Alan Kay coined the term</li>
+			<li>He regretted that inheritance became the focus of OOP later on, when in reality, message passing was its most important aspect</li>
+			<li>Message passing enabled two key goals of OOP: encapsulation and decoupling</li>
+			<li>This gives us the most assurance possible that a change in one object will not affect other objects, as long as the interface remains the same</li>
+			<li>We've now broken down our code into separate pieces as much as possible</li>
+			<li>OOP also gives us an abstraction that lets us easily think about real-world objects instead of having to think about what the computer is actually dealing with (i.e., the data)</li>
+			<li>This is also the first time we start talking about "creating" and "deleting" things</li>
+		</ul>
+    </aside>
+</section>
+<section>
+	<p>To sum it all up</p>
+	<p class="fragment">Abstraction</p>
+	<aside class="notes">
+		The history of software is about building abstractions and design patterns.
+	</aside>
+</section>
+<section>
+    <h3>Trying it out</h3>
+    <aside class="notes">Let's use abstraction to design a real-world project</p>
+</section>
+<section>
+    <iframe width="1180" height="630" data-src="https://www.youtube.com/embed/_4_9xMC6Ce8?start=71" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <aside class="notes">
+    	This is a game jam entry I did with some friends a few years ago.
+    	Watch a minute or two of the video to understand the goal.
+    	Apologies for the language.
+    </aside>
+</section>
+<section>
+    <p>My friend starts with an abstraction</p>
+    <pre><code class="java" data-trim>
+class Cell {
+    int getNumber();
+    int getX();
+    int getY();
+    Player getOwner();
+}
+    </code></pre>
+	<aside class="notes">But soon runs into problems...</aside>
+</section>
+<section>
+    <ul>
+    	<li>When I combine cell A with cell B, do I delete A or B?</li>
+    	<li class="fragment">If I want to move cell A to the left, should the cell move, or should I delete it and create a new one?</li>
+    	<li class="fragment">Each cell will need a way to reference its neighbors...</li>
+    	<li class="fragment">I'll probably have an array of cells, how do I keep this up to date?</li>
+    	<li class="fragment">I'll have to pass the array in to each cell...</li>
+    	<li class="fragment">Dang, it's looking like the whole thing is going to be one giant object.</li>
+    </ul>
+    <aside class="notes">
+		<ul>
+    		<li>This really happened, my friend got completely bogged down.</li>
+			<li>Now let's try thinking about data first.</li>
+		</ul>
+    </aside>
+</section>
+<section>
+    <p>What's the most straightforward, simple way to represent this game in memory?</p>
+</section>
+<section data-transition="slide-in fade-out">
+    <p>How about an array of numbers?</p>
+    <pre><code class="go" data-trim data-noescape>
+<span class="hidden">//         v</span>
+a := [][]int{
+    {2, 2, 4, 8},
+    {0, 2, 0, 0},
+    {0, 2, 2, 0},<span class="hidden">// &lt;</span>
+    {0, 0, 0, 0},
+}
+<span class="hidden">a[2][1] += a[2][2]
+a[2][2] = 0
+//     {2, 2, 4, 8},
+//     {0, 2, 0, 0},
+//     {0, 4, 0, 0},
+//     {0, 0, 0, 0},</span>
+    </code></pre>
+</section>
+<section data-transition="fade">
+    <p>To shift and combine this cell to the left...</p>
+    <pre><code class="go" data-trim data-noescape>
+//         v
+a := [][]int{
+    {2, 2, 4, 8},
+    {0, 2, 0, 0},
+    {0, 2, 2, 0},// &lt;
+    {0, 0, 0, 0},
+}
+<span class="hidden">a[2][1] += a[2][2]
+a[2][2] = 0
+//     {2, 2, 4, 8},
+//     {0, 2, 0, 0},
+//     {0, 4, 0, 0},
+//     {0, 0, 0, 0},</span>
+    </code></pre>
+</section>
+<section data-transition="fade-in slide-out">
+    <p>We just add it to the cell to the left, then zero it out.</p>
+    <pre><code class="go" data-trim data-noescape>
+//         v
+a := [][]int{
+    {2, 2, 4, 8},
+    {0, 2, 0, 0},
+    {0, 2, 2, 0},// &lt;
+    {0, 0, 0, 0},
+}
+a[2][1] += a[2][2]
+a[2][2] = 0
+//     {2, 2, 4, 8},
+//     {0, 2, 0, 0},
+//     {0, 4, 0, 0},
+//     {0, 0, 0, 0},
+    </code></pre>
+</section>
+<section>
+    <p>To shift the whole grid, we could loop over it and shift each cell.</p>
+    <pre><code class="go" data-trim>
+	for y := 0; y < 4; y++ {
+		for x := 1; x < 4; x++ {
+			if a[y][x-1] == a[y][x] {
+				a[y][x-1] += a[y][x]
+				a[y][x] = 0
+			}
+		}
+	}
+    </code></pre>
+</section>
+<section>
+    <p>I bet we could break this into functions...</p>
+    <pre><code class="go" data-trim>
+	func shiftGridLeft(a [][]int) {
+		for y := 0; y < 4; y++ {
+			for x := 1; x < 4; x++ {
+				shiftCellLeft(a, x, y)
+			}
+		}
+	}
+	func shiftCellLeft(a [][]int, x int, y int) {
+		if a[y][x-1] == a[y][x] {
+			return
+		}
+		a[y][x-1] += a[y][x]
+		a[y][x] = 0
+	}
+    </code></pre>
+</section>
+<section>
+    <p>Next...</p>
+	<ul>
+		<li>We could turn these into pure functions</li>
+		<li>We could turn the whole grid into an object</li>
+		<li>We could write tests</li>
+	</ul>
+	<aside class="notes">You may notice something about the process we just went through...</aside>
+</section>
+<section>
+    <p>We just progressed through the whole history of software</p>
+	<ol>
+		<li>Unstructured programming: a = b</li>
+		<li>Structured programming: for { }</li>
+		<li>Functional decomposition: shiftCellLeft()</li>
+		<li>OOP</li>
+	</ol>
+	<aside class="notes">
+		Using my definition, DOD doesn't preclude you from using objects. Just be careful...
+	</aside>
+</section>
+<section>
+    <p>Don't put the cart before the horse!</p>
+	<ol>
+		<li><s>OOP</s></li>
+		<li><s>Functional decomposition</s></li>
+		<li><s>Structured programming</s></li>
+		<li><s>Unstructured programming</s></li>
+	</ol>
+	<aside class="notes">Again, doesn't mean we can't use OOP</aside>
+</section>
+<section>
+	<ul>
+		<li>DOD doesn't mean you can't use objects and other abstractions</li>
+		<li>You can use DOD in any domain and any language, even enterprise Java</li>
+	</ul>
+	<aside class="notes">
+		There are many different ways of thinking about software, and DOD doesn't preclude you from using them... all it says is...
+	</aside>
+</section>
+<section>
+    <h3>My thesis</h3>
+	<p>Think about the data FIRST, before anything else.</p>
+	<p class="fragment">Thank you!</p>
+	<aside class="notes">
+		If you think about it in terms of data first, everything else will fall into place.
+	</aside>
+</section>
+    		</div>
+    	</div>
+
+    	<script src="reveal.js/dist/reveal.js"></script>
+    	<script src="reveal.js/plugin/notes/notes.js"></script>
+    	<script src="reveal.js/plugin/highlight/highlight.js"></script>
+    	<script>
+    		Reveal.initialize({
+    			hash: true,
+    			plugins: [ RevealHighlight, RevealNotes ]
+    		});
+    	</script>
+    </body>
+</html>
