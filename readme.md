@@ -1,4 +1,4 @@
-# Data-Driven Design
+# Data-Oriented Design
 
 Slides for a strongDM tech talk.
 
