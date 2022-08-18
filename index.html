@@ -79,7 +79,7 @@
 	<p>Which function should we optimize?</p>
 	<pre><code class="go" data-trim>
 func a(x float64) float64 {
-	return math.Sqrt(x);
+	return math.Sqrt(x)
 }
 
 var data []float64
@@ -91,7 +91,7 @@ func b(x int) float64 {
 		<ul>
 			<li>Imagine you're a game developer and your game is running slow</li>
 			<li>These functions are called about the same number of times</li>
-			<li>Which do you optimize?</li>
+			<li>Which do you optimize? Think of your answer now</li>
 			<li>You might think square root is expensive, and it is, let's optimize it</li>
 			<li>This will lead us down a dark path...</li>
 		</ul>
@@ -124,7 +124,7 @@ float Q_rsqrt( float number )
 <section>
 	<pre><code class="go" data-trim>
 func a(x float64) float64 {
-	return math.Sqrt(x);
+	return math.Sqrt(x)
 }
 
 var data []float64
@@ -317,10 +317,10 @@ for (int i = 0; i < players.length; i++)
 	</code></pre>
 	<aside class="notes">
 		<ul>
-			<li>Difference #1: lists of actual data, not pointers to data</li>
+			<li>Difference #1: lists of actual data, not pointers to data (this is language specific; doesn't apply to Python or Javascript where everything is a pointer)</li>
 			<li>Difference #2: we always know what kind of data we're working with</li>
 			<li>We can control the order they execute and where they're stored</li>
-			<li>What does our heap look like now?</li>
+			<li>What does our memory look like now?</li>
 		</ul>
 	</aside>
 </section>
@@ -338,6 +338,7 @@ for (int i = 0; i < players.length; i++)
 	<p>OOP = bad performance</p>
 	<aside class="notes">
 		<ul>
+			<li>Any questions?</li>
 			<li>This leads somewhere very unhelpful...</li>
 		</ul>
 	</aside>
@@ -370,10 +371,11 @@ for (int i = 0; i < players.length; i++)
 </section>
 <section>
 	<h3>My thesis</h3>
-    <p>DOD: think about the data FIRST, before anything else.</p>
+	<p>DOD: think about the data FIRST, before anything else.</p>
 	<p class="fragment">This actually results in better design</p>
 	<aside class="notes">
 		<ul>
+			<li>It doesn't just improve performance, it improves your design</li>
 			<li>What does it mean to have "better design"?</li>
 		</ul>
 	</aside>
@@ -479,7 +481,10 @@ class Employee {
 	<p>To sum it all up</p>
 	<p class="fragment">Abstraction</p>
 	<aside class="notes">
-		The history of software is about building abstractions and design patterns.
+		<ul>
+			<li>The history of software is about building abstractions and design patterns</li>
+			<li>Let's try "abstraction-oriented design" and see where it gets us</li>
+		</ul>
 	</aside>
 </section>
 <section>
@@ -489,9 +494,13 @@ class Employee {
 <section>
     <iframe width="1180" height="630" data-src="https://www.youtube.com/embed/_4_9xMC6Ce8?start=71" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
     <aside class="notes">
-    	This is a game jam entry I did with some friends a few years ago.
-    	Watch a minute or two of the video to understand the goal.
-    	Apologies for the language.
+    	<ul>
+		<li>Make sure to share sound</li>
+		<li>This is a game jam entry I did with some friends a few years ago</li>
+    		<li>Watch a minute or two of the video to understand the goal</li>
+    		<li>Apologies for the language</li>
+		<li>So let's try to make this game using "abstraction-oriented design"...</li>
+	</ul>
     </aside>
 </section>
 <section>
@@ -517,7 +526,7 @@ class Cell {
     </ul>
     <aside class="notes">
 		<ul>
-    		<li>This really happened, my friend got completely bogged down.</li>
+			<li>This really happened, my friend got completely bogged down.</li>
 			<li>Now let's try thinking about data first.</li>
 		</ul>
     </aside>
